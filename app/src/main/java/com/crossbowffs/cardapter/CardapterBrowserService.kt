@@ -2,17 +2,21 @@ package com.crossbowffs.cardapter
 
 import android.content.ComponentName
 import android.media.browse.MediaBrowser
-import android.media.session.MediaSession
 import android.os.Bundle
 import android.service.media.MediaBrowserService
+import android.util.Log
 
 class CardapterBrowserService : MediaBrowserService() {
-    private lateinit var session: MediaSession
+    companion object {
+        private const val TAG = "Cardapter"
+    }
+
     private lateinit var browser: MediaBrowser
 
     override fun onCreate() {
         super.onCreate()
-        session = MediaSession(this, "Cardapter")
+        Log.i(TAG, "onCreate()")
+
         browser = MediaBrowser(
             this,
             ComponentName(
@@ -21,14 +25,38 @@ class CardapterBrowserService : MediaBrowserService() {
             ),
             object : MediaBrowser.ConnectionCallback() {
                 override fun onConnected() {
+                    Log.i(TAG, "onConnected()")
+
                     // The important part! Exports the real SoundCloud session token to
                     // the system so we can use it with Android Auto.
-                    setSessionToken(browser.getSessionToken())
+                    val token = browser.getSessionToken()
+                    Log.i(TAG, "sessionToken = " + token.hashCode())
+                    setSessionToken(token)
+                }
+
+                override fun onConnectionFailed() {
+                    Log.e(TAG, "onConnectionFailed()")
+                }
+
+                override fun onConnectionSuspended() {
+                    Log.e(TAG, "onConnectionSuspended()")
+
+                    // setSessionToken can only be called once so we can't change our token
+                    // if the connection is re-established, so we kill ourselves in the hope
+                    // that someone will restart us and restart the connection.
+                    stopSelf()
                 }
             },
             null
         )
         browser.connect()
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        Log.i(TAG, "onDestroy()")
+
+        browser.disconnect()
     }
 
     override fun onLoadChildren(
